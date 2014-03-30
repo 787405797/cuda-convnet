@@ -18,7 +18,7 @@
 #
 ################################################################################
 
-.SUFFIXES : .cu .cu_dbg.o .c_dbg.o .cpp_dbg.o .cu_rel.o .c_rel.o .cpp_rel.o .cubin .ptx
+.SUFFIXES : .pyc .py .cu .cu_dbg.o .c_dbg.o .cpp_dbg.o .cu_rel.o .c_rel.o .cpp_rel.o .cubin .ptx
 
 # Add new SM Versions here as devices with new Compute Capability are released
 SM_VERSIONS   := 10 11 12 13 20 21 30 35
@@ -59,6 +59,7 @@ NVCC       := $(CUDA_INSTALL_PATH)/bin/nvcc
 CXX        := g++-4.6 -fPIC
 CC         := gcc-4.6 -fPIC
 LINK       := g++-4.6 -fPIC
+PY		   := python
 
 # Includes
 INCLUDES  += -I. -I$(CUDA_INSTALL_PATH)/include -I$(COMMONDIR)/inc -I$(SHAREDDIR)/inc
@@ -145,6 +146,7 @@ CXXFLAGS  += $(CXXWARN_FLAGS) $(CXX_ARCH_FLAGS)
 CFLAGS    += $(CWARN_FLAGS) $(CXX_ARCH_FLAGS)
 LINKFLAGS += -Wl,-no-undefined
 LINK      += $(LINKFLAGS) $(CXX_ARCH_FLAGS)
+PYFLAGS	  := -m py_compile
 
 # This option for Mac allows CUDA applications to work without requiring to set DYLD_LIBRARY_PATH
 ifneq ($(DARWIN),)
@@ -268,7 +270,7 @@ else
     ifeq ($(x86_64),1)
        LIB       += -L$(CUDA_INSTALL_PATH)/lib64 -L$(LIBDIR) -L$(COMMONDIR)/lib/$(OSLOWER) -L$(SHAREDDIR)/lib 
     else
-       LIB       += -L$(CUDA_INSTALL_PATH)/lib -L$(LIBDIR) -L$(COMMONDIR)/lib/$(OSLOWER) -L$(SHAREDDIR)/lib
+       LIB       += -L$(CUDA_INSTALL_PATH)/lib -L$(LI#BDIR) -L$(COMMONDIR)/lib/$(OSLOWER) -L$(SHAREDDIR)/lib
     endif
   else
     ifeq ($(i386),1)
@@ -392,6 +394,7 @@ OBJDIR := $(ROOTOBJDIR)/$(LIB_ARCH)/$(BINSUBDIR)
 OBJS +=  $(patsubst %.cpp,$(OBJDIR)/%.cpp.o,$(CCFILES))
 OBJS +=  $(patsubst %.c,$(OBJDIR)/%.c.o,$(CFILES))
 OBJS +=  $(patsubst %.cu,$(OBJDIR)/%.cu.o,$(CUFILES))
+OBJSPY = $(patsubst %.py,%.pyc,$(PYFILES))
 
 ################################################################################
 # Set up cubin output files
@@ -408,6 +411,8 @@ PTXBINS +=  $(patsubst %.cu,$(PTXDIR)/%.ptx,$(notdir $(PTXFILES)))
 ################################################################################
 # Rules
 ################################################################################
+%.pyc : %.py
+	$(VERBOSE)$(PY) $(PYFLAGS) $<
 $(OBJDIR)/%.c.o : $(SRCDIR)%.c $(C_DEPS)
 	$(VERBOSE)$(CC) $(CFLAGS) -o $@ -c $<
 
@@ -453,8 +458,11 @@ endef
 # function interprets it as make commands.
 $(foreach smver,$(SM_VERSIONS),$(eval $(call SMVERSION_template,$(smver))))
 
+all: $(TARGET) $(OBJSPY)
+
 $(TARGET): makedirectories $(OBJS) $(CUBINS) $(PTXBINS) link Makefile
 	$(VERBOSE)$(LINKLINE)
+
 	
 link: 
 	$(VERBOSE)ln -sf ./bin/linux/release/$(EXECUTABLE) .

@@ -20,6 +20,7 @@ CUFILES				:= $(shell echo src/*.cu src/cudaconv2/*.cu src/nvmatrix/*.cu)
 CU_DEPS				:= $(shell echo include/*.cuh include/cudaconv2/*.cuh include/nvmatrix/*.cuh)
 CCFILES				:= $(shell echo src/common/*.cpp)
 C_DEPS				:= $(shell echo include/common/*.h)
+PYFILES				:= $(shell echo *.py)
 
 include common-gcc-cuda-5.5.mk
 	
