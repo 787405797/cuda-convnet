@@ -329,12 +329,20 @@ class FloatOptionParser(OptionParser):
 class RangeOptionParser(OptionParser):
     @staticmethod
     def parse(value):
-        m = re.match("^(\d+)\-(\d+)$", value)
+        l = []
+        pa = re.compile(r'(\d+(\-\d+)?)')
+        pa1 = re.compile(r'^(\d)+\-(\d+)$')
+        vs = re.findall(pa,value)
         try:
-            if m: return range(int(m.group(1)), int(m.group(2)) + 1)
-            return [int(value)]
+            for v in vs:
+                m = re.match(pa1, v[0])
+                if m: 
+                    l += range(int(m.group(1)), int(m.group(2)) + 1)
+                else:
+                    l += [int(v[0])]
         except:
             raise OptionException("argument is neither an integer nor a range")
+        return l
     
     @staticmethod
     def to_string(value):

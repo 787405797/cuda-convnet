@@ -66,7 +66,7 @@ class IGPUModel:
         else:
             self.model_state = {}
             if filename_options is not None:
-                self.save_file = model_name + "_" + '_'.join(['%s_%s' % (char, self.options[opt].get_str_value()) for opt, char in filename_options]) + '_' + strftime('%Y-%m-%d_%H.%M.%S')
+                self.save_file = model_name + "_" + '_'.join(['%s_%s' % (char, self.options[opt].get_str_value()) for opt, char in filename_options]) + '_Output'#'_' + strftime('%Y-%m-%d_%H.%M.%S')
             self.model_state["train_outputs"] = []
             self.model_state["test_outputs"] = []
             self.model_state["epoch"] = 1

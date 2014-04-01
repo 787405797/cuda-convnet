@@ -213,8 +213,8 @@ class LabeledMemoryDataProvider(LabeledDataProvider):
             
     def get_next_batch(self):
         epoch, batchnum = self.curr_epoch, self.curr_batchnum
+        bidx = self.batch_idx
         self.advance_batch()
-        bidx = batchnum - self.batch_range[0]
         return epoch, batchnum, self.data_dic[bidx]
     
 dp_types = {"default": "The default data provider; loads one batch into memory at a time",
