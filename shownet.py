@@ -291,7 +291,18 @@ class ShowConvNet(ConvNet):
         op.add_option("write-features", "write_features", StringOptionParser, "Write test data features from given layer", default="", requires=['feature-path'])
         op.add_option("feature-path", "feature_path", StringOptionParser, "Write test data features to this path (to be used with --write-features)", default="")
         
+        op.delete_option('max_test_err')
+        op.options["max_filesize_mb"].default = 0
+        op.options["testing_freq"].default = 50
+        op.options["num_epochs"].default = 50000
         op.options['load_file'].default = None
+        
+        DataProvider.register_data_provider('cifar', 'CIFAR', CIFARDataProvider)
+        DataProvider.register_data_provider('dummy-cn-n', 'Dummy ConvNet', DummyConvNetDataProvider)
+        DataProvider.register_data_provider('cifar-cropped', 'Cropped CIFAR', CroppedCIFARDataProvider)
+
+        DataProvider.register_data_provider('Mnist','Mnist without preprocessing',MnistDataProvider)
+        DataProvider.register_data_provider('Genki4k','Genki4k with mannually calibration',Genki4kDataProvider)
         return op
     
 if __name__ == "__main__":
