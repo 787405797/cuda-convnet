@@ -66,11 +66,12 @@ class IGPUModel:
         else:
             self.model_state = {}
             if filename_options is not None:
-                self.save_file = model_name + "_" + '_'.join(['%s_%s' % (char, self.options[opt].get_str_value()) for opt, char in filename_options]) + '_Output'#'_' + strftime('%Y-%m-%d_%H.%M.%S')
+                self.save_file = model_name + "_" + '_'.join(['%s_%s' % (char, self.options[opt].get_str_value()) for opt, char in filename_options]) + '_output'#'_' + strftime('%y-%m-%d_%h.%m.%s')
             self.model_state["train_outputs"] = []
             self.model_state["test_outputs"] = []
             self.model_state["epoch"] = 1
             self.model_state["batchnum"] = self.train_batch_range[0]
+            self.model_state["batches_done"] = 0
 
         self.init_data_providers()
         if load_dic: 
@@ -148,7 +149,8 @@ class IGPUModel:
             batch_output = self.finish_batch()
             self.train_outputs += [batch_output]
             self.print_train_results()
-
+            
+            #print 'batches_done: ',self.get_num_batches_done(),' ',
             if self.get_num_batches_done() % self.testing_freq == 0:
                 self.sync_with_host()
                 self.test_outputs += [self.get_test_error()]
@@ -169,7 +171,8 @@ class IGPUModel:
         pass
     
     def get_num_batches_done(self):
-        return len(self.train_batch_range) * (self.epoch - 1) + self.batchnum - self.train_batch_range[0] + 1
+        #return len(self.train_batch_range) * (self.epoch - 1) + self.batchnum - self.train_batch_range[0] + 1
+        return self.batches_done
     
     def get_next_batch(self, train=True):
         dp = self.train_data_provider
@@ -184,6 +187,7 @@ class IGPUModel:
         self.libmodel.startBatch(batch_data[2], not train)
     
     def finish_batch(self):
+        self.batches_done += 1
         return self.libmodel.finishBatch()
     
     def print_iteration(self):
@@ -261,7 +265,9 @@ class IGPUModel:
         checkpoint_file_full_path = os.path.join(checkpoint_dir, checkpoint_file)
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
-    
+        
+        import ipdb
+        ipdb.set_trace()
         pickle(checkpoint_file_full_path, dic,compress=self.zip_save)
         
         for f in sorted(os.listdir(checkpoint_dir), key=alphanum_key):

@@ -192,6 +192,11 @@ class ConvNet(IGPUModel):
         DataProvider.register_data_provider('cifar', 'CIFAR', CIFARDataProvider)
         DataProvider.register_data_provider('dummy-cn-n', 'Dummy ConvNet', DummyConvNetDataProvider)
         DataProvider.register_data_provider('cifar-cropped', 'Cropped CIFAR', CroppedCIFARDataProvider)
+        DataProvider.register_data_provider('Mnist','Mnist without preprocessing',MnistDataProvider)
+        DataProvider.register_data_provider('Genki4k','Genki4k with mannually calibration',Genki4kDataProvider)
+        DataProvider.register_data_provider('Genki4kRGB','Genki4k with mannually calibration',Genki4kRGBDataProvider)
+        DataProvider.register_data_provider('Genki4kMean','Genki4k with mannually calibration',Genki4kMeanDataProvider)
+        DataProvider.register_data_provider('CroppedGenki4kRGB','Genki4k with mannually calibration',CroppedGenki4kRGBDataProvider)
         
         return op
     

@@ -344,13 +344,14 @@ class RangeOptionParser(OptionParser):
             raise OptionException("argument is neither an integer nor a range")
         return l
     
-    @staticmethod
-    def to_string(value):
-        return "%d-%d" % (value[0], value[-1])
+    #@staticmethod
+    #def to_string(value):
+        #return "%d-%d" % (value[0], value[-1])
+        #return str(value)
     
     @staticmethod
     def get_type_str():
-        return "int[-int]"
+        return "int[-int][,int[-int]]..."
     
     @staticmethod
     def is_type(value):
