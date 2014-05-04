@@ -108,3 +108,12 @@ def get_cpu():
 
 def is_windows_machine():
     return os.name == 'nt'
+
+def normlise(temp, mean=0., var=1.):
+    '''normlise a matrix to has specified mean and var
+    temp: a vector or matrix
+    mean: a scale or a vector
+    var: a scale or a vector'''
+    temp = temp/n.sqrt(temp.var(0))*sqrt(var)
+    temp = temp - temp.mean(0) + mean
+    return temp

@@ -266,8 +266,6 @@ class IGPUModel:
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
         
-        import ipdb
-        ipdb.set_trace()
         pickle(checkpoint_file_full_path, dic,compress=self.zip_save)
         
         for f in sorted(os.listdir(checkpoint_dir), key=alphanum_key):

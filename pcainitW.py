@@ -7,18 +7,18 @@ import pylab as pl
 import options
 from math import ceil,sqrt
 
-def pcainitW(name, idx, shape, model, params=None):
+def pcainitW(name, idx, shape, params=None):
     ''' name: the layer name.
         idx: the weight matrix within that layer.
         shape: a 2-tuple of (rows, columns).
         dic: model state dictionary.
         params: string parameters specified in the definition.'''
     filter_path = "/home/pris/PCANet/Genki4k_filter.mat"
-    dic = sio.loadmat(filter_path)
-    filters = dic[params]
+    dic = sio.loadmat(filter_path,)
+    filters = dic[params[0]]
     row,col,num = filters.shape
-    assert row*col == shape[0] and num == shape[1], "dimension not agree. Given:(%d,%d); required: (%d,%d)" % (row*col,num,shape[0],shape[1])
-    filters = np.reshape(filters,shape)
+    filters = np.tile(np.require(np.reshape(filters,(row*col,num)),dtype=np.float32),(int(params[1]),1))
+    assert shape == filters.shape, "dimension not agree. Given:(%d,%d); required: (%d,%d)" % (filters.shape+shape)
     return filters
 
 def showW(f):

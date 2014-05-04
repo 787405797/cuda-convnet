@@ -32,6 +32,7 @@ from math import ceil, floor
 from ordereddict import OrderedDict
 from os import linesep as NL
 from options import OptionsParser
+from util import normlise
 import re
 
 class LayerParsingError(Exception):
@@ -704,6 +705,7 @@ class WeightLayerParser(LayerWithInputParser):
                     raise LayerParsingError("Layer '%s[%d]': weight matrix returned by weight initialization function %s has wrong shape. Should be: %s; got: %s." % (dic['name'], i, dic['initWFunc'], (rows[i], cols[i]), dic['weights'][i].shape))
                 # Convert to desired order
                 dic['weights'][i] = n.require(dic['weights'][i], requirements=order)
+                dic['weights'][i] = n.reshape(normlise(dic['weights'][i].flatten(), 0, initW[i]), dic['weights'][i].shape) 
                 dic['weightsInc'] += [n.zeros_like(dic['weights'][i])]
                 print "Layer '%s[%d]' initialized weight matrices from function %s" % (dic['name'], i, dic['initWFunc'])
         else:

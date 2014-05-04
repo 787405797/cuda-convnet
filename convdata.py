@@ -26,6 +26,7 @@ from data import *
 import numpy.random as nr
 import numpy as n
 import random as r
+from util import normlise
 
 class CIFARDataProvider(LabeledMemoryDataProvider):
     def __init__(self, data_dir, batch_range, init_epoch=1, init_batchnum=None, dp_params={}, test=False):
@@ -196,6 +197,12 @@ class Genki4kDataProvider(LabeledMemoryDataProvider):
     # This is used by shownet.py to plot test case predictions.
     def get_plottable_data(self, data):
         return n.require((data).T.reshape(data.shape[1], 1, self.img_size, self.img_size).swapaxes(1,3).swapaxes(1,2), dtype=n.single)
+
+class Genki4kDataNormProvider(Genki4kDataProvider):
+    def __init__(self, data_dir, batch_range, init_epoch=1, init_batchnum=None, dp_params={}, test=False):
+        Genki4kDataProvider.__init__(self, data_dir, batch_range, init_epoch, init_batchnum, dp_params, test)
+        for d in self.data_dic:
+            d['data'] = normlise(d['data'])
 
 class Genki4kRGBDataProvider(LabeledMemoryDataProvider):
     def __init__(self, data_dir, batch_range, init_epoch=1, init_batchnum=None, dp_params={}, test=False):
