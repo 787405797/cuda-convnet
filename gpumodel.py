@@ -63,10 +63,21 @@ class IGPUModel:
             self.save_file = self.options["load_file"].value
             if not os.path.isdir(self.save_file):
                 self.save_file = os.path.dirname(self.save_file)
+            # split file name out
+            (pdir,self.save_file) = os.path.split( self.save_file )
+            if( len(self.save_file) == 0 ):
+                (pdir,self.save_file) = os.path.split( pdir )
+            if( os.path.samefile( pdir, self.save_path ) ):
+               print "pdir:" , pdir
+               print "self.save_path: ", self.save_path
         else:
             self.model_state = {}
             if filename_options is not None:
                 self.save_file = model_name + "_" + '_'.join(['%s_%s' % (char, self.options[opt].get_str_value()) for opt, char in filename_options]) + '_output'#'_' + strftime('%y-%m-%d_%h.%m.%s')
+            else: # generate self.save_file string
+                if filename_options is not None:
+                    self.save_file = model_name + "_" + '_'.join(['%s_%s' % (char, self.options[opt].get_str_value()) for opt, char in filename_options]) + '_' + strftime('%Y-%m-%d_%H.%M.%S')
+
             self.model_state["train_outputs"] = []
             self.model_state["test_outputs"] = []
             self.model_state["epoch"] = 1
@@ -100,9 +111,15 @@ class IGPUModel:
     def init_data_providers(self):
         self.dp_params['convnet'] = self
         try:
-            self.test_data_provider = DataProvider.get_instance(self.data_path, self.test_batch_range,
+            self.test_data_provider = DataProvider.get_instance(
+                    self.data_path, 
+                    self.img_size, self.img_channels,  # options i've add to cifar data provider
+                    self.test_batch_range, 
                                                                 type=self.dp_type, dp_params=self.dp_params, test=True)
-            self.train_data_provider = DataProvider.get_instance(self.data_path, self.train_batch_range,
+            self.train_data_provider = DataProvider.get_instance(
+                    self.data_path, 
+                    self.img_size, self.img_channels,  # options i've add to cifar data provider
+                    self.train_batch_range, 
                                                                      self.model_state["epoch"], self.model_state["batchnum"],
                                                                      type=self.dp_type, dp_params=self.dp_params, test=False)
         except DataProviderException, e:
@@ -121,9 +138,26 @@ class IGPUModel:
             self.test_outputs += [self.get_test_error()]
             self.print_test_results()
             sys.exit(0)
+        elif self.pred_only:
+            self.get_predictions()
+            sys.exit(0)
         self.train()
+
+    def scale_learningRate( self, eps ):
+        self.libmodel.scaleModelEps( eps );
+
+    def reset_modelMom( self ):
+        self.libmodel.resetModelMom( );
     
     def train(self):
+        print "============================================"
+        print "learning rate scale     : ", self.scale_rate
+        print "Reset Momentum          : ", self.reset_mom
+        print "Image Rotation & Scaling: ", self.img_rs
+        print "============================================"
+        self.scale_learningRate( self.scale_rate )
+        if self.reset_mom:
+            self.reset_modelMom( )
         print "========================="
         print "Training %s" % self.model_name
         self.op.print_values()
@@ -134,11 +168,36 @@ class IGPUModel:
         print "Saving checkpoints to %s" % os.path.join(self.save_path, self.save_file)
         print "========================="
         next_data = self.get_next_batch()
+
+        #for ii in range(100):
+        #    plot_col_image( next_data[2][0][:,ii], 24, 24, 3, 
+        #            "index: "+str(next_data[2][1][0,ii]) )
+
+        if self.adp_drop:
+            dropRate = 0.0
+            self.set_dropRate( dropRate );
+
+        # define epoch cost
+        epoch_cost = 0
+        print_epoch_cost = False
+        # training loop
         while self.epoch <= self.num_epochs:
             data = next_data
             self.epoch, self.batchnum = data[0], data[1]
+            # reset epoch_cost
+            if self.batchnum == 1:
+                # print if necessary
+                if print_epoch_cost:
+                    print "epoch_cost: " + str( epoch_cost )
+                # reset epoch_cost
+                epoch_cost = 0
+                print_epoch_cost = True
+
             self.print_iteration()
             sys.stdout.flush()
+            
+            if self.batchnum == 1 and self.adp_drop:
+                dropRate = self.adjust_dropRate( dropRate )
             
             compute_time_py = time()
             self.start_batch(data)
@@ -149,8 +208,6 @@ class IGPUModel:
             batch_output = self.finish_batch()
             self.train_outputs += [batch_output]
             self.print_train_results()
-            
-            #print 'batches_done: ',self.get_num_batches_done(),' ',
             if self.get_num_batches_done() % self.testing_freq == 0:
                 self.sync_with_host()
                 self.test_outputs += [self.get_test_error()]
@@ -163,6 +220,25 @@ class IGPUModel:
     
     def cleanup(self):
         sys.exit(0)
+        
+    def set_dropRate( self, dropRate ):
+        print "set drop rate: ", dropRate 
+        self.libmodel.setDropRate( dropRate );
+
+    def adjust_dropRate( self, dropRate ):
+        #self.print_costs(self.train_outputs[-1])
+        #costs, num_cases = cost_outputs[0], cost_outputs[1]
+        if not self.train_outputs:
+            return dropRate 
+        costs, num_cases = self.train_outputs[-1][0], self.train_outputs[-1][1]
+        for errname in costs.keys():
+            #costs[errname] = [(v) for v in costs[errname]]
+            #if costs[errname][1] < (1-dropRate) and dropRate <= 0.8:
+            if costs[errname][1] < (1-dropRate):
+                dropRate += 0.1
+                self.set_dropRate( dropRate )
+
+        return dropRate
         
     def sync_with_host(self):
         self.libmodel.syncWithHost()
@@ -178,7 +254,20 @@ class IGPUModel:
         dp = self.train_data_provider
         if not train:
             dp = self.test_data_provider
-        return self.parse_batch_data(dp.get_next_batch(), train=train)
+        data = self.parse_batch_data(dp.get_next_batch(), train=train)
+        w = dp.get_out_img_size()
+        h = dp.get_out_img_size()
+        d = dp.get_out_img_depth()
+
+        #plot_col_image( data[2][0][:,0], w, h, d, 'data 0 ' )
+        if self.img_rs and train:
+            assert( w * h * d == data[2][0].shape[0] )
+            self.libmodel.preprocess( [data[2][0]], w, h, d, 0.15, 15 )
+
+        # disply data[2][0] first a few images for debugging
+        #plot_col_image( data[2][0][:,0], w, h, d, 'data 0 ' )
+
+        return data
     
     def parse_batch_data(self, batch_data, train=True):
         return batch_data[0], batch_data[1], batch_data[2]['data']
@@ -223,6 +312,35 @@ class IGPUModel:
         test_error = tuple([sum(t[r] for t in test_outputs) / (1 if self.test_one else len(self.test_batch_range)) for r in range(len(test_outputs[-1]))])
         return test_error
     
+    def get_predictions(self):
+        import ipdb
+        ipdb.set_trace()
+        self.sotmax_idx = self.get_layer_idx('probs')
+        next_data = self.get_next_batch(train=False)
+        num_classes = self.test_data_provider.get_num_classes()
+        NUM_TOP_CLASSES = min(num_classes, 5)
+        pred_path = self.save_path + "predictions"
+        f = open(pred_path,'w')
+        while True:
+            data = next_data
+            preds = n.zeros((data[2][0].shape[1], num_classes), dtype=n.single)
+            temp = data[2]
+            temp += [preds]
+            self.libmodel.startFeatureWriter(temp, self.sotmax_idx, 1)
+            load_next = not self.test_one and data[1] < self.test_batch_range[-1]
+            if load_next:
+                next_data = self.get_next_batch(train=False)
+            self.finish_batch()
+            ind = n.argsort(preds)
+            m, c = preds.shape
+            for i in range(m):
+                for j in range(c-1,c-NUM_TOP_CLASSES-1,-1):
+                    f.write(str(preds[i][ind[i][j]])+' '+str(ind[i][j])+' ')
+                f.write('\n')
+            if not load_next:
+                f.close()
+                break
+            
     def get_test_error(self):
         next_data = self.get_next_batch(train=False)
         test_outputs = []
@@ -265,7 +383,7 @@ class IGPUModel:
         checkpoint_file_full_path = os.path.join(checkpoint_dir, checkpoint_file)
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
-        
+    
         pickle(checkpoint_file_full_path, dic,compress=self.zip_save)
         
         for f in sorted(os.listdir(checkpoint_dir), key=alphanum_key):
@@ -295,9 +413,16 @@ class IGPUModel:
         op.add_option("max-test-err", "max_test_err", FloatOptionParser, "Maximum test error for saving")
         op.add_option("num-gpus", "num_gpus", IntegerOptionParser, "Number of GPUs", default=1)
         op.add_option("test-only", "test_only", BooleanOptionParser, "Test and quit?", default=0)
+        op.add_option("pred-only", "pred_only", BooleanOptionParser, "Pred and quit?", default=0)
         op.add_option("zip-save", "zip_save", BooleanOptionParser, "Compress checkpoints?", default=0)
         op.add_option("test-one", "test_one", BooleanOptionParser, "Test on one batch at a time?", default=1)
         op.add_option("gpu", "gpu", ListOptionParser(IntegerOptionParser), "GPU override", default=OptionExpression("[-1] * num_gpus"))
+        ####### my additionial config #########
+        op.add_option("scale-rate", "scale_rate", FloatOptionParser, "Learning Rate Scale Factor", default=1 )
+        op.add_option("adp-drop", "adp_drop", BooleanOptionParser, "Adaptive Drop Training", default=False )
+        op.add_option("model-file", "model_file", StringOptionParser, "Model File Name", default="" )
+        op.add_option("reset-mom", "reset_mom", BooleanOptionParser, "Reset layer momentum",
+              default=False )
         return op
 
     @staticmethod

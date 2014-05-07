@@ -43,6 +43,19 @@ An environment variable ``CONVNET_RANDOM_SEED``, if set, will be used
 to set the CURAND library's random seed.  This is important in order
 to get reproducable results.
 
+PREDICTIONS
+===========
+
+To see the predictions for test-batch, you can use command like this::
+    
+    python convnet.py -f *filename* --pred-only=1
+
+The output file is stored at ``[save_path]/predictions``. For each case, it stores the top 5 predictions and class ID. So the format of the file is like::
+    
+    p1 c1 p2 c2 p3 c3 p4 c4 (case 1)
+    p1 c1 p2 c2 p3 c3 p4 c4 (case 2)
+    ...
+Attention: the softmax layer of the layer.cfg should be named *probs*
 
 Updated to work with CUDA 5.5
 =============================
