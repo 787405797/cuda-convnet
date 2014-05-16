@@ -6,7 +6,7 @@
 #
 # - Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
-# 
+#
 # - Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
 #   and/or other materials provided with the distribution.
@@ -53,7 +53,7 @@ class IGPUModel:
         self.get_gpus()
         self.fill_excused_options()
         #assert self.op.all_values_given()
-        
+
         for o in op.get_options_list():
             setattr(self, o.name, o.value)
 
@@ -85,9 +85,9 @@ class IGPUModel:
             self.model_state["batches_done"] = 0
 
         self.init_data_providers()
-        if load_dic: 
+        if load_dic:
             self.train_data_provider.advance_batch()
-            
+
         # model state often requries knowledge of data provider, so it's initialized after
         try:
             self.init_model_state()
@@ -96,43 +96,43 @@ class IGPUModel:
             sys.exit(1)
         for var, val in self.model_state.iteritems():
             setattr(self, var, val)
-            
+
         self.import_model()
         self.init_model_lib()
-        
+
     def import_model(self):
         print "========================="
         print "Importing %s C++ module" % ('_' + self.model_name)
-        self.libmodel = __import__('_' + self.model_name) 
-                   
+        self.libmodel = __import__('_' + self.model_name)
+
     def fill_excused_options(self):
         pass
-    
+
     def init_data_providers(self):
         self.dp_params['convnet'] = self
         try:
             self.test_data_provider = DataProvider.get_instance(
-                    self.data_path, 
+                    self.data_path,
                     self.img_size, self.img_channels,  # options i've add to cifar data provider
-                    self.test_batch_range, 
+                    self.test_batch_range,
                                                                 type=self.dp_type, dp_params=self.dp_params, test=True)
             self.train_data_provider = DataProvider.get_instance(
-                    self.data_path, 
+                    self.data_path,
                     self.img_size, self.img_channels,  # options i've add to cifar data provider
-                    self.train_batch_range, 
+                    self.train_batch_range,
                                                                      self.model_state["epoch"], self.model_state["batchnum"],
                                                                      type=self.dp_type, dp_params=self.dp_params, test=False)
         except DataProviderException, e:
             print "Unable to create data provider: %s" % e
             self.print_data_providers()
             sys.exit()
-        
+
     def init_model_state(self):
         pass
-       
+
     def init_model_lib(self):
         pass
-    
+
     def start(self):
         if self.test_only:
             self.test_outputs += [self.get_test_error()]
@@ -148,16 +148,16 @@ class IGPUModel:
 
     def reset_modelMom( self ):
         self.libmodel.resetModelMom( );
-    
+
     def train(self):
         print "============================================"
         print "learning rate scale     : ", self.scale_rate
         print "Reset Momentum          : ", self.reset_mom
         print "Image Rotation & Scaling: ", self.img_rs
         print "============================================"
-        self.scale_learningRate( self.scale_rate )
-        if self.reset_mom:
-            self.reset_modelMom( )
+        #self.scale_learningRate( self.scale_rate )
+        #if self.reset_mom:
+            #self.reset_modelMom( )
         print "========================="
         print "Training %s" % self.model_name
         self.op.print_values()
@@ -170,7 +170,7 @@ class IGPUModel:
         next_data = self.get_next_batch()
 
         #for ii in range(100):
-        #    plot_col_image( next_data[2][0][:,ii], 24, 24, 3, 
+        #    plot_col_image( next_data[2][0][:,ii], 24, 24, 3,
         #            "index: "+str(next_data[2][1][0,ii]) )
 
         if self.adp_drop:
@@ -195,16 +195,16 @@ class IGPUModel:
 
             self.print_iteration()
             sys.stdout.flush()
-            
+
             if self.batchnum == 1 and self.adp_drop:
                 dropRate = self.adjust_dropRate( dropRate )
-            
+
             compute_time_py = time()
             self.start_batch(data)
-            
+
             # load the next batch while the current one is computing
             next_data = self.get_next_batch()
-            
+
             batch_output = self.finish_batch()
             self.train_outputs += [batch_output]
             self.print_train_results()
@@ -214,22 +214,22 @@ class IGPUModel:
                 self.print_test_results()
                 self.print_test_status()
                 self.conditional_save()
-            
+
             self.print_train_time(time() - compute_time_py)
         self.cleanup()
-    
+
     def cleanup(self):
         sys.exit(0)
-        
+
     def set_dropRate( self, dropRate ):
-        print "set drop rate: ", dropRate 
+        print "set drop rate: ", dropRate
         self.libmodel.setDropRate( dropRate );
 
     def adjust_dropRate( self, dropRate ):
         #self.print_costs(self.train_outputs[-1])
         #costs, num_cases = cost_outputs[0], cost_outputs[1]
         if not self.train_outputs:
-            return dropRate 
+            return dropRate
         costs, num_cases = self.train_outputs[-1][0], self.train_outputs[-1][1]
         for errname in costs.keys():
             #costs[errname] = [(v) for v in costs[errname]]
@@ -239,17 +239,17 @@ class IGPUModel:
                 self.set_dropRate( dropRate )
 
         return dropRate
-        
+
     def sync_with_host(self):
         self.libmodel.syncWithHost()
-            
+
     def print_model_state(self):
         pass
-    
+
     def get_num_batches_done(self):
         #return len(self.train_batch_range) * (self.epoch - 1) + self.batchnum - self.train_batch_range[0] + 1
         return self.batches_done
-    
+
     def get_next_batch(self, train=True):
         dp = self.train_data_provider
         if not train:
@@ -268,23 +268,23 @@ class IGPUModel:
         #plot_col_image( data[2][0][:,0], w, h, d, 'data 0 ' )
 
         return data
-    
+
     def parse_batch_data(self, batch_data, train=True):
         return batch_data[0], batch_data[1], batch_data[2]['data']
-    
+
     def start_batch(self, batch_data, train=True):
         self.libmodel.startBatch(batch_data[2], not train)
-    
+
     def finish_batch(self):
         self.batches_done += 1
         return self.libmodel.finishBatch()
-    
+
     def print_iteration(self):
         print "\t%d.%d..." % (self.epoch, self.batchnum),
-    
+
     def print_train_time(self, compute_time_py):
         print "(%.3f sec)" % (compute_time_py)
-    
+
     def print_train_results(self):
         batch_error = self.train_outputs[-1][0]
         if not (batch_error > 0 and batch_error < 2e20):
@@ -300,18 +300,18 @@ class IGPUModel:
     def print_test_status(self):
         status = (len(self.test_outputs) == 1 or self.test_outputs[-1][0] < self.test_outputs[-2][0]) and "ok" or "WORSE"
         print status,
-        
+
     def conditional_save(self):
         batch_error = self.test_outputs[-1][0]
         if batch_error > 0 and batch_error < self.max_test_err:
             self.save_state()
         else:
             print "\tTest error > %g, not saving." % self.max_test_err,
-    
+
     def aggregate_test_outputs(self, test_outputs):
         test_error = tuple([sum(t[r] for t in test_outputs) / (1 if self.test_one else len(self.test_batch_range)) for r in range(len(test_outputs[-1]))])
         return test_error
-    
+
     def get_predictions(self):
         import ipdb
         ipdb.set_trace()
@@ -340,7 +340,7 @@ class IGPUModel:
             if not load_next:
                 f.close()
                 break
-            
+
     def get_test_error(self):
         next_data = self.get_next_batch(train=False)
         test_outputs = []
@@ -356,42 +356,42 @@ class IGPUModel:
             if not load_next:
                 break
             sys.stdout.flush()
-            
+
         return self.aggregate_test_outputs(test_outputs)
-    
+
     def set_var(self, var_name, var_val):
         setattr(self, var_name, var_val)
         self.model_state[var_name] = var_val
         return var_val
-        
+
     def get_var(self, var_name):
         return self.model_state[var_name]
-        
+
     def has_var(self, var_name):
         return var_name in self.model_state
-        
+
     def save_state(self):
         for att in self.model_state:
             if hasattr(self, att):
                 self.model_state[att] = getattr(self, att)
-        
+
         dic = {"model_state": self.model_state,
                "op": self.op}
-            
+
         checkpoint_dir = os.path.join(self.save_path, self.save_file)
         checkpoint_file = "%d.%d" % (self.epoch, self.batchnum)
         checkpoint_file_full_path = os.path.join(checkpoint_dir, checkpoint_file)
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
-    
+
         pickle(checkpoint_file_full_path, dic,compress=self.zip_save)
-        
+
         for f in sorted(os.listdir(checkpoint_dir), key=alphanum_key):
             if sum(os.path.getsize(os.path.join(checkpoint_dir, f2)) for f2 in os.listdir(checkpoint_dir)) > self.max_filesize_mb*1024*1024 and f != checkpoint_file:
                 os.remove(os.path.join(checkpoint_dir, f))
             else:
                 break
-            
+
     @staticmethod
     def load_checkpoint(load_dir):
         if os.path.isdir(load_dir):
@@ -430,13 +430,13 @@ class IGPUModel:
         print "Available data providers:"
         for dp, desc in dp_types.iteritems():
             print "    %s: %s" % (dp, desc)
-            
+
     def get_gpus(self):
         self.device_ids = [get_gpu_lock(g) for g in self.op.get_value('gpu')]
         if GPU_LOCK_NO_LOCK in self.device_ids:
             print "Not enough free GPUs!"
             sys.exit()
-        
+
     @staticmethod
     def parse_options(op):
         try:
@@ -458,4 +458,4 @@ class IGPUModel:
             print "Error loading checkpoint:"
             print e
         sys.exit()
-        
+

@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <data.cuh>
+#include <iostream>
 
 using namespace std;
 
@@ -54,6 +55,7 @@ void DataProvider::setData(CPUData& hData) {
         _dataSize += hData[i].getNumDataBytes();
     }
     _dataSize /= 1024 * 1024;
+    //cout<<"_dataSize: "<<_dataSize<<"MB"<<endl;
     if (_dataSize < MAX_DATA_ON_GPU) {
         for (int i = 0; i < hData.getSize(); i++) {
             if (i >= _data.size()) {

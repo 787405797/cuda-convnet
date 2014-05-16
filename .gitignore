@@ -5,3 +5,4 @@ _ConvNet.so
 Workspace/
 tags
 *.orig
+.*

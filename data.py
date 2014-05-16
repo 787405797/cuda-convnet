@@ -6,7 +6,7 @@
 #
 # - Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
-# 
+#
 # - Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
 #   and/or other materials provided with the distribution.
@@ -54,7 +54,7 @@ class DataProvider:
         self.advance_batch()
 
         return epoch, batchnum, self.data_dic
-    
+
     def __add_subbatch(self, batch_num, sub_batchnum, batch_dic):
         subbatch_path = "%s.%d" % (os.path.join(self.data_dir, self.get_data_file_name(batch_num)), sub_batchnum)
         if os.path.exists(subbatch_path):
@@ -62,10 +62,10 @@ class DataProvider:
             self._join_batches(batch_dic, sub_dic)
         else:
             raise IndexError("Sub-batch %d.%d does not exist in %s" % (batch_num,sub_batchnum, self.data_dir))
-        
+
     def _join_batches(self, main_batch, sub_batch):
         main_batch['data'] = n.r_[main_batch['data'], sub_batch['data']]
-        
+
     def get_batch(self, batch_num):
         if os.path.exists(self.get_data_file_name(batch_num) + '.1'): # batch in sub-batches
             dic = unpickle(self.get_data_file_name(batch_num) + '.1')
@@ -79,30 +79,30 @@ class DataProvider:
         else:
             dic = unpickle(self.get_data_file_name(batch_num))
         return dic
-    
+
     def get_data_dims(self):
         return self.batch_meta['num_vis']
-    
+
     def advance_batch(self):
         self.batch_idx = self.get_next_batch_idx()
         self.curr_batchnum = self.batch_range[self.batch_idx]
         if self.batch_idx == 0: # we wrapped
             self.curr_epoch += 1
-            
+
     def get_next_batch_idx(self):
         return (self.batch_idx + 1) % len(self.batch_range)
-    
+
     def get_next_batch_num(self):
         return self.batch_range[self.get_next_batch_idx()]
-    
+
     # get filename of current batch
     def get_data_file_name(self, batchnum=None):
         if batchnum is None:
             batchnum = self.curr_batchnum
         return os.path.join(self.data_dir, 'data_batch_%d' % batchnum)
-    
+
     @classmethod
-    def get_instance(cls, data_dir, 
+    def get_instance(cls, data_dir,
             img_size, num_colors,  # options i've add to cifar data provider
             batch_range=None, init_epoch=1, init_batchnum=None, type="default", dp_params={}, test=False):
         # why the fuck can't i reference DataProvider in the original definition?
@@ -123,33 +123,33 @@ class DataProvider:
                 _class = dp_classes[type]
                 return _class(data_dir, img_size, num_colors,
                         batch_range, init_epoch, init_batchnum, dp_params, test)
-        
+
         raise DataProviderException("No such data provider: %s" % type)
-    
+
     @classmethod
     def register_data_provider(cls, name, desc, _class):
         if name in dp_types:
             raise DataProviderException("Data provider %s already registered" % name)
         dp_types[name] = desc
         dp_classes[name] = _class
-        
+
     @staticmethod
     def get_batch_meta(data_dir):
         return unpickle(os.path.join(data_dir, BATCH_META_FILE))
-    
+
     @staticmethod
     def get_batch_filenames(srcdir):
         return sorted([f for f in os.listdir(srcdir) if DataProvider.BATCH_REGEX.match(f)], key=alphanum_key)
-    
+
     @staticmethod
     def get_batch_nums(srcdir):
         names = DataProvider.get_batch_filenames(srcdir)
         return sorted(list(set(int(DataProvider.BATCH_REGEX.match(n).group(1)) for n in names)))
-        
+
     @staticmethod
     def get_num_batches(srcdir):
         return len(DataProvider.get_batch_nums(srcdir))
-    
+
 class DummyDataProvider(DataProvider):
     def __init__(self, data_dim):
         #self.data_dim = data_dim
@@ -158,14 +158,14 @@ class DummyDataProvider(DataProvider):
         self.curr_epoch = 1
         self.curr_batchnum = 1
         self.batch_idx = 0
-        
+
     def get_next_batch(self):
         epoch,  batchnum = self.curr_epoch, self.curr_batchnum
         self.advance_batch()
         data = rand(512, self.get_data_dims()).astype(n.single)
         return self.curr_epoch, self.curr_batchnum, {'data':data}
 
-    
+
 class LabeledDummyDataProvider(DummyDataProvider):
     def __init__(self, data_dim, num_classes=10, num_cases=512):
         #self.data_dim = data_dim
@@ -178,10 +178,10 @@ class LabeledDummyDataProvider(DummyDataProvider):
         self.curr_epoch = 1
         self.curr_batchnum = 1
         self.batch_idx=0
-        
+
     def get_num_classes(self):
         return self.num_classes
-    
+
     def get_next_batch(self):
         epoch,  batchnum = self.curr_epoch, self.curr_batchnum
         self.advance_batch()
@@ -196,20 +196,26 @@ class MemoryDataProvider(DataProvider):
         self.data_dic = []
         for i in self.batch_range:
             self.data_dic += [self.get_batch(i)]
-    
+
     def get_next_batch(self):
         epoch, batchnum = self.curr_epoch, self.curr_batchnum
         self.advance_batch()
 
         return epoch, batchnum, self.data_dic[batchnum - self.batch_range[0]]
 
-class LabeledDataProvider(DataProvider):   
+class LabeledDataProvider(DataProvider):
     def __init__(self, data_dir, batch_range=None, init_epoch=1, init_batchnum=None, dp_params={}, test=False):
         DataProvider.__init__(self, data_dir, batch_range, init_epoch, init_batchnum, dp_params, test)
-        
+
+    def get_next_batch(self):
+        epoch, batchnum = self.curr_epoch, self.curr_batchnum
+        bidx = self.batch_idx
+        self.advance_batch()
+        return epoch, batchnum, bidx
+
     def get_num_classes(self):
         return len(self.batch_meta['label_names'])
-    
+
 class LabeledMemoryDataProvider(LabeledDataProvider):
     def __init__(self, data_dir, batch_range, init_epoch=1, init_batchnum=None, dp_params={}, test=False):
         LabeledDataProvider.__init__(self, data_dir, batch_range, init_epoch, init_batchnum, dp_params, test)
@@ -217,13 +223,11 @@ class LabeledMemoryDataProvider(LabeledDataProvider):
         for i in batch_range:
             self.data_dic += [unpickle(self.get_data_file_name(i))]
             self.data_dic[-1]["labels"] = n.c_[n.require(self.data_dic[-1]['labels'], dtype=n.single)]
-            
+
     def get_next_batch(self):
-        epoch, batchnum = self.curr_epoch, self.curr_batchnum
-        bidx = self.batch_idx
-        self.advance_batch()
+        epoch, batchnum, bidx = LabeledDataProvider.get_next_batch(self)
         return epoch, batchnum, self.data_dic[bidx]
-    
+
 dp_types = {"default": "The default data provider; loads one batch into memory at a time",
             "memory": "Loads the entire dataset into memory",
             "labeled": "Returns data and labels (used by classifiers)",
@@ -236,6 +240,6 @@ dp_classes = {"default": DataProvider,
               "labeled-memory": LabeledMemoryDataProvider,
               "dummy-n": DummyDataProvider,
               "dummy-labeled-n": LabeledDummyDataProvider}
-    
+
 class DataProviderException(Exception):
     pass

@@ -55,7 +55,7 @@ The output file is stored at ``[save_path]/predictions``. For each case, it stor
     p1 c1 p2 c2 p3 c3 p4 c4 (case 1)
     p1 c1 p2 c2 p3 c3 p4 c4 (case 2)
     ...
-Attention: the softmax layer of the layer.cfg should be named *probs*
+Attention: the softmax layer of the layer.cfg should be named *probs*.
 
 Updated to work with CUDA 5.5
 =============================
