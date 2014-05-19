@@ -331,7 +331,7 @@ class RangeOptionParser(OptionParser):
     def parse(value):
         l = []
         pa = re.compile(r'(\d+(\-\d+)?)')
-        pa1 = re.compile(r'^(\d)+\-(\d+)$')
+        pa1 = re.compile(r'^(\d+)\-(\d+)$')
         vs = re.findall(pa,value)
         try:
             for v in vs:

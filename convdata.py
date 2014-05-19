@@ -28,7 +28,52 @@ import numpy as n
 import random as r
 from util import normlise
 from util import unpickle
+import time
+from multiprocessing import Pool
+import threading
+import time
 
+class LimitedMemoryData(object):
+    def __init__(self, data_dir, train_batch_range, test_batch_range):
+        self.train_batch_range = train_batch_range
+        self.batch_range = train_batch_range + test_batch_range
+        self.batches_ind = 0
+        self.batchNum_eachload = 5
+        self.max_num_batches = self.batchNum_eachload * 2
+        self.available_num = 0
+        self.data_dir = data_dir
+        self.datadic = []
+        self.pool = Pool(self.batchNum_eachload)
+        for i in range(len(self.batch_range)):
+            self.datadic += [None]
+        th = threading.Thread(target=self.run)
+        th.start()
+    def multiload(self):
+        batch_idxs = map(lambda x: x % len(self.batch_range),range(self.batches_ind, self.batches_ind + self.batchNum_eachload ))
+        filenames = map(lambda x: self.data_dir + "data_batch_" + str(self.batch_range[x]), batch_idxs)
+        start = time.time()
+        temp = self.pool.map(unpickle, filenames)
+        for i in range(len(batch_idxs)):
+            self.datadic[batch_idxs[i]] = temp[i]
+        del temp
+        print "elasped time: ", time.time() - start
+        self.batches_ind = batch_idxs[-1] + 1
+        self.available_num += self.batchNum_eachload
+    def load(self, batch_idx):
+        print "loading batch_idx: ", batch_idx, " batch: ", self.batch_range[batch_idx]
+        self.datadic[batch_idx] = unpickle(self.data_dir + "data_batch_" + str(self.batch_range[batch_idx]))
+    def run(self):
+        while True:
+            if self.available_num < self.batchNum_eachload:
+                self.multiload()
+    def get_batch(self, batch_idx):
+        print "getting batch: ", batch_idx
+        while not self.datadic[batch_idx]:
+            time.sleep(1)
+        x = self.datadic[batch_idx]
+        self.datadic[batch_idx] = None
+        self.available_num -= 1
+        return x
 
 class ImageNetDataProvider(LabeledDataProvider):
     def __init__(self, data_dir, batch_range, init_epoch=1, init_batchnum=None, dp_params={}, test=False):
@@ -36,10 +81,14 @@ class ImageNetDataProvider(LabeledDataProvider):
         self.data_mean = self.batch_meta['data_mean']
         self.num_colors = 3
         self.img_size = 256
+        self.data = dp_params['convnet'].data
 
     def get_next_batch(self):
         epoch, batchnum, bidx = LabeledDataProvider.get_next_batch(self)
-        datadic = unpickle(self.get_data_file_name(self.batch_range[bidx]))
+        if self.test:
+            datadic = self.data.get_batch(bidx + len(self.data.train_batch_range))
+        else:
+            datadic = self.data.get_batch(bidx)
         datadic['data'] = n.require(datadic['data']/256., requirements='C', dtype=n.single)
         datadic['labels'] = n.require(datadic['labels'].reshape(1,datadic['data'].shape[1]), dtype=n.single, requirements='C')
         return epoch, batchnum, [datadic['data'], datadic['labels']]
@@ -310,7 +359,6 @@ class CroppedGeneralDataProvider(LabeledMemoryDataProvider):
         # correct for cropped_data size
         #cropped = self.cropped_data[self.batches_generated % 2]
         cropped = n.zeros((self.get_data_dims(), datadic['data'].shape[1]*self.data_mult), dtype=n.single)
-        #import pdb; pdb.set_trace();
 
         self.__trim_borders(datadic['data'], cropped)
         cropped -= self.data_mean

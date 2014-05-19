@@ -32,6 +32,7 @@ from data import *
 from options import *
 from math import ceil, floor, sqrt
 from data import DataProvider, dp_types
+from convdata import LimitedMemoryData
 import sys
 import shutil
 import platform
@@ -53,7 +54,6 @@ class IGPUModel:
         self.get_gpus()
         self.fill_excused_options()
         #assert self.op.all_values_given()
-
         for o in op.get_options_list():
             setattr(self, o.name, o.value)
 
@@ -111,6 +111,8 @@ class IGPUModel:
     def init_data_providers(self):
         self.dp_params['convnet'] = self
         try:
+            if self.dp_type == "imagenet":
+                self.data = LimitedMemoryData(self.data_path, self.train_batch_range, self.test_batch_range) 
             self.test_data_provider = DataProvider.get_instance(
                     self.data_path,
                     self.img_size, self.img_channels,  # options i've add to cifar data provider
@@ -203,7 +205,8 @@ class IGPUModel:
             self.start_batch(data)
 
             # load the next batch while the current one is computing
-            next_data = self.get_next_batch()
+            if self.get_num_batches_done() % self.testing_freq != 0:
+                next_data = self.get_next_batch()
 
             batch_output = self.finish_batch()
             self.train_outputs += [batch_output]
@@ -275,8 +278,9 @@ class IGPUModel:
     def start_batch(self, batch_data, train=True):
         self.libmodel.startBatch(batch_data[2], not train)
 
-    def finish_batch(self):
-        self.batches_done += 1
+    def finish_batch(self,train=True):
+        if train:
+            self.batches_done += 1
         return self.libmodel.finishBatch()
 
     def print_iteration(self):
@@ -350,7 +354,7 @@ class IGPUModel:
             load_next = not self.test_one and data[1] < self.test_batch_range[-1]
             if load_next: # load next batch
                 next_data = self.get_next_batch(train=False)
-            test_outputs += [self.finish_batch()]
+            test_outputs += [self.finish_batch(train=False)]
             if self.test_only: # Print the individual batch results for safety
                 print "batch %d: %s" % (data[1], str(test_outputs[-1]))
             if not load_next:
