@@ -29,9 +29,12 @@ import random as r
 from util import normlise
 from util import unpickle
 import time
-from multiprocessing import Pool
+from multiprocessing import Pool,Manager
 import threading
 import time
+
+def load(datadic, ind, filename):
+    datadic[ind] = unpickle(filename)
 
 class LimitedMemoryData(object):
     def __init__(self, data_dir, train_batch_range, test_batch_range):
@@ -42,8 +45,9 @@ class LimitedMemoryData(object):
         self.max_num_batches = self.batchNum_eachload * 2
         self.available_num = 0
         self.data_dir = data_dir
-        self.datadic = []
-        self.pool = Pool(self.batchNum_eachload)
+        self.manager = Manager()
+        self.datadic = self.manager.list([])
+        self.pool = Pool(self.max_num_batches)
         for i in range(len(self.batch_range)):
             self.datadic += [None]
         th = threading.Thread(target=self.run)
@@ -64,8 +68,15 @@ class LimitedMemoryData(object):
         self.datadic[batch_idx] = unpickle(self.data_dir + "data_batch_" + str(self.batch_range[batch_idx]))
     def run(self):
         while True:
-            if self.available_num < self.batchNum_eachload:
-                self.multiload()
+            #if self.available_num < self.batchNum_eachload:
+                #self.multiload()
+            if self.available_num < self.max_num_batches:
+                self.pool.apply_async(load,(self.datadic, self.batches_ind, self.data_dir+"data_batch_"+str(self.batch_range[self.batches_ind])))
+                self.batches_ind += 1
+                self.batches_ind = self.batches_ind % len(self.batch_range)
+                self.available_num += 1
+            else:
+                time.sleep(0.5)
     def get_batch(self, batch_idx):
         print "getting batch: ", batch_idx
         while not self.datadic[batch_idx]:
@@ -76,22 +87,32 @@ class LimitedMemoryData(object):
         return x
 
 class ImageNetDataProvider(LabeledDataProvider):
-    def __init__(self, data_dir, batch_range, init_epoch=1, init_batchnum=None, dp_params={}, test=False):
+    def __init__(self, data_dir, batch_range, init_epoch=1, init_batchnum=None, dp_params={}, test=False, show=False):
         LabeledDataProvider.__init__(self, data_dir, batch_range, init_epoch, init_batchnum, dp_params, test)
         self.data_mean = self.batch_meta['data_mean']
         self.num_colors = 3
         self.img_size = 256
-        self.data = dp_params['convnet'].data
+        if not show:
+            self.data = dp_params['convnet'].data
+        self.show = show
 
     def get_next_batch(self):
-        epoch, batchnum, bidx = LabeledDataProvider.get_next_batch(self)
-        if self.test:
-            datadic = self.data.get_batch(bidx + len(self.data.train_batch_range))
+        if self.show:
+            epoch, batchnum, bidx = LabeledDataProvider.get_next_batch(self)
+            datadic = unpickle(self.data_dir+"data_batch_"+str(batchnum))
+            datadic['data'] = n.require(datadic['data']/256., requirements='C', dtype=n.single)
+            datadic['labels'] = n.require(datadic['labels'].reshape(1,datadic['data'].shape[1]), dtype=n.single, requirements='C')
+            return epoch, batchnum, [datadic['data'], datadic['labels']]
+            
         else:
-            datadic = self.data.get_batch(bidx)
-        datadic['data'] = n.require(datadic['data']/256., requirements='C', dtype=n.single)
-        datadic['labels'] = n.require(datadic['labels'].reshape(1,datadic['data'].shape[1]), dtype=n.single, requirements='C')
-        return epoch, batchnum, [datadic['data'], datadic['labels']]
+            epoch, batchnum, bidx = LabeledDataProvider.get_next_batch(self)
+            if self.test:
+                datadic = self.data.get_batch(bidx + len(self.data.train_batch_range))
+            else:
+                datadic = self.data.get_batch(bidx)
+            datadic['data'] = n.require(datadic['data']/256., requirements='C', dtype=n.single)
+            datadic['labels'] = n.require(datadic['labels'].reshape(1,datadic['data'].shape[1]), dtype=n.single, requirements='C')
+            return epoch, batchnum, [datadic['data'], datadic['labels']]
 
     # Returns the dimensionality of the two data matrices returned by get_next_batch
     # idx is the index of the matrix.

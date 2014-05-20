@@ -33,6 +33,7 @@ import random as r
 import numpy.random as nr
 from convnet import ConvNet
 from options import *
+from convdata import *
 
 try:
     import pylab as pl
@@ -63,7 +64,11 @@ class ShowConvNet(ConvNet):
             def advance_batch(self):
                 pass
         if self.need_gpu:
-            ConvNet.init_data_providers(self)
+            if self.dp_type == "imagenet":
+                self.train_data_provider = ImageNetDataProvider(self.data_path, self.train_batch_range, test=False, show=True) 
+                self.test_data_provider = ImageNetDataProvider(self.data_path, self.test_batch_range, test=True, show=True)
+            else:
+                ConvNet.init_data_providers(self)
         else:
             self.train_data_provider = self.test_data_provider = Dummy()
     
@@ -215,8 +220,6 @@ class ShowConvNet(ConvNet):
         data += [preds]
 
         # Run the model
-        import ipdb
-        ipdb.set_trace()
         self.libmodel.startFeatureWriter(data, self.sotmax_idx,1)
         self.finish_batch()
         

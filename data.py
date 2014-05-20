@@ -95,7 +95,7 @@ class DataProvider:
     def get_next_batch_num(self):
         return self.batch_range[self.get_next_batch_idx()]
 
-    # get filename of current batch
+    # get filename of current 
     def get_data_file_name(self, batchnum=None):
         if batchnum is None:
             batchnum = self.curr_batchnum

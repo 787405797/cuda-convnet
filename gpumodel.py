@@ -205,7 +205,7 @@ class IGPUModel:
             self.start_batch(data)
 
             # load the next batch while the current one is computing
-            if self.get_num_batches_done() % self.testing_freq != 0:
+            if (self.get_num_batches_done() + 1) % self.testing_freq != 0:
                 next_data = self.get_next_batch()
 
             batch_output = self.finish_batch()
@@ -217,6 +217,7 @@ class IGPUModel:
                 self.print_test_results()
                 self.print_test_status()
                 self.conditional_save()
+                next_data = self.get_next_batch()
 
             self.print_train_time(time() - compute_time_py)
         self.cleanup()
@@ -317,8 +318,6 @@ class IGPUModel:
         return test_error
 
     def get_predictions(self):
-        import ipdb
-        ipdb.set_trace()
         self.sotmax_idx = self.get_layer_idx('probs')
         next_data = self.get_next_batch(train=False)
         num_classes = self.test_data_provider.get_num_classes()
